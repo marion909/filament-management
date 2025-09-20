@@ -932,32 +932,31 @@ function addNfcUidRow(containerId, index, isEdit = false) {
     
     const namePrefix = isEdit ? 'edit_nfc_uids' : 'nfc_uids';
     
-    row.innerHTML = `
-        <div style="display: grid; grid-template-columns: 1fr 120px 120px 40px 40px; gap: 10px; align-items: end; margin-bottom: 10px;">
-            <div>
-                <input type="text" name="${namePrefix}[${index}][uid]" placeholder="NFC-UID eingeben" class="nfc-uid-input" required>
-            </div>
-            <div>
-                <select name="${namePrefix}[${index}][type]" class="nfc-type-select">
-                    <option value="unknown">Unbekannt</option>
-                    <option value="integrated">Integriert</option>
-                    <option value="custom">Custom</option>
-                </select>
-            </div>
-            <div>
-                <input type="text" name="${namePrefix}[${index}][position]" placeholder="Position" class="nfc-position-input">
-            </div>
-            <div>
-                <label style="font-size: 12px;">
-                    <input type="checkbox" name="${namePrefix}[${index}][is_primary]" value="1" class="nfc-primary-checkbox">
-                    Primär
-                </label>
-            </div>
-            <div>
-                <button type="button" class="btn-remove-nfc" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 30px; height: 30px;">×</button>
-            </div>
-        </div>
-    `;
+    row.innerHTML = '' +
+        '<div style="display: grid; grid-template-columns: 1fr 120px 120px 40px 40px; gap: 10px; align-items: end; margin-bottom: 10px;">' +
+            '<div>' +
+                '<input type="text" name="' + namePrefix + '[' + index + '][uid]" placeholder="NFC-UID eingeben" class="nfc-uid-input" required>' +
+            '</div>' +
+            '<div>' +
+                '<select name="' + namePrefix + '[' + index + '][type]" class="nfc-type-select">' +
+                    '<option value="unknown">Unbekannt</option>' +
+                    '<option value="integrated">Integriert</option>' +
+                    '<option value="custom">Custom</option>' +
+                '</select>' +
+            '</div>' +
+            '<div>' +
+                '<input type="text" name="' + namePrefix + '[' + index + '][position]" placeholder="Position" class="nfc-position-input">' +
+            '</div>' +
+            '<div>' +
+                '<label style="font-size: 12px;">' +
+                    '<input type="checkbox" name="' + namePrefix + '[' + index + '][is_primary]" value="1" class="nfc-primary-checkbox">' +
+                    'Primär' +
+                '</label>' +
+            '</div>' +
+            '<div>' +
+                '<button type="button" class="btn-remove-nfc" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 30px; height: 30px;">×</button>' +
+            '</div>' +
+        '</div>';
     
     container.appendChild(row);
     
@@ -1006,28 +1005,27 @@ function hideAddSpoolModal() {
     document.getElementById('new-color-input').value = '';
     // Reset NFC-UIDs container to initial state
     const nfcContainer = document.getElementById('nfc-uids-container');
-    nfcContainer.innerHTML = `
-        <div class="nfc-uid-row" data-index="0">
-            <div style="display: grid; grid-template-columns: 1fr 120px 120px 40px; gap: 10px; align-items: end; margin-bottom: 10px;">
-                <div>
-                    <input type="text" name="nfc_uids[0][uid]" placeholder="NFC-UID (optional)" class="nfc-uid-input">
-                </div>
-                <div>
-                    <select name="nfc_uids[0][type]" class="nfc-type-select">
-                        <option value="unknown">Unbekannt</option>
-                        <option value="integrated">Integriert</option>
-                        <option value="custom">Custom</option>
-                    </select>
-                </div>
-                <div>
-                    <input type="text" name="nfc_uids[0][position]" placeholder="Position" class="nfc-position-input">
-                </div>
-                <div>
-                    <button type="button" class="btn-remove-nfc" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 30px; height: 30px;">×</button>
-                </div>
-            </div>
-        </div>
-    `;
+    nfcContainer.innerHTML = '' +
+        '<div class="nfc-uid-row" data-index="0">' +
+            '<div style="display: grid; grid-template-columns: 1fr 120px 120px 40px; gap: 10px; align-items: end; margin-bottom: 10px;">' +
+                '<div>' +
+                    '<input type="text" name="nfc_uids[0][uid]" placeholder="NFC-UID (optional)" class="nfc-uid-input">' +
+                '</div>' +
+                '<div>' +
+                    '<select name="nfc_uids[0][type]" class="nfc-type-select">' +
+                        '<option value="unknown">Unbekannt</option>' +
+                        '<option value="integrated">Integriert</option>' +
+                        '<option value="custom">Custom</option>' +
+                    '</select>' +
+                '</div>' +
+                '<div>' +
+                    '<input type="text" name="nfc_uids[0][position]" placeholder="Position" class="nfc-position-input">' +
+                '</div>' +
+                '<div>' +
+                    '<button type="button" class="btn-remove-nfc" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 30px; height: 30px;">×</button>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
     nfcUidCounter = 1;
 }
 
