@@ -235,8 +235,33 @@ ob_start();
                 </div>
                 
                 <div class="form-group">
-                    <label for="spool-nfc">NFC-UID:</label>
-                    <input type="text" id="spool-nfc" name="nfc_uid" placeholder="Optional">
+                    <label>NFC-UIDs:</label>
+                    <div id="nfc-uids-container">
+                        <div class="nfc-uid-row" data-index="0">
+                            <div style="display: grid; grid-template-columns: 1fr 120px 120px 40px; gap: 10px; align-items: end; margin-bottom: 10px;">
+                                <div>
+                                    <input type="text" name="nfc_uids[0][uid]" placeholder="NFC-UID (optional)" class="nfc-uid-input">
+                                </div>
+                                <div>
+                                    <select name="nfc_uids[0][type]" class="nfc-type-select">
+                                        <option value="unknown">Unbekannt</option>
+                                        <option value="integrated">Integriert</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <input type="text" name="nfc_uids[0][position]" placeholder="Position" class="nfc-position-input">
+                                </div>
+                                <div>
+                                    <button type="button" class="btn-remove-nfc" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 30px; height: 30px;">×</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" id="add-nfc-uid" class="btn btn-secondary" style="margin-top: 5px;">+ NFC-UID hinzufügen</button>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        💡 Tipp: Viele Hersteller (Bambu Lab, Prusament) haben bereits integrierte NFC-Tags
+                    </div>
                 </div>
             </div>
             
@@ -344,9 +369,17 @@ ob_start();
                     <input type="text" id="edit-spool-batch" name="batch_number">
                 </div>
                 
+                </div>
+                
                 <div class="form-group">
-                    <label for="edit-spool-nfc">NFC-UID:</label>
-                    <input type="text" id="edit-spool-nfc" name="nfc_uid" placeholder="Optional">
+                    <label>NFC-UIDs:</label>
+                    <div id="edit-nfc-uids-container">
+                        <!-- NFC-UIDs werden hier dynamisch geladen -->
+                    </div>
+                    <button type="button" id="edit-add-nfc-uid" class="btn btn-secondary" style="margin-top: 5px;">+ NFC-UID hinzufügen</button>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        💡 Ein Tag kann als primär markiert werden (für Scanner-Anzeige)
+                    </div>
                 </div>
             </div>
             
@@ -617,6 +650,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // NFC-UID Management
+    let nfcUidCounter = 1;
+    
+    // Add NFC-UID Button (Add Modal)
+    document.getElementById('add-nfc-uid').addEventListener('click', function() {
+        addNfcUidRow('nfc-uids-container', nfcUidCounter++);
+    });
+    
+    // Add NFC-UID Button (Edit Modal)  
+    document.getElementById('edit-add-nfc-uid').addEventListener('click', function() {
+        addNfcUidRow('edit-nfc-uids-container', nfcUidCounter++, true);
+    });
+    });
+    
     document.getElementById('edit-spool-type').addEventListener('change', function() {
         const editNewTypeGroup = document.getElementById('edit-new-type-group');
         if (this.value === 'other') {
@@ -876,6 +923,68 @@ function clearFilters() {
     loadSpools(currentPage);
 }
 
+// NFC-UID Management Functions
+function addNfcUidRow(containerId, index, isEdit = false) {
+    const container = document.getElementById(containerId);
+    const row = document.createElement('div');
+    row.className = 'nfc-uid-row';
+    row.dataset.index = index;
+    
+    const namePrefix = isEdit ? 'edit_nfc_uids' : 'nfc_uids';
+    
+    row.innerHTML = `
+        <div style="display: grid; grid-template-columns: 1fr 120px 120px 40px 40px; gap: 10px; align-items: end; margin-bottom: 10px;">
+            <div>
+                <input type="text" name="${namePrefix}[${index}][uid]" placeholder="NFC-UID eingeben" class="nfc-uid-input" required>
+            </div>
+            <div>
+                <select name="${namePrefix}[${index}][type]" class="nfc-type-select">
+                    <option value="unknown">Unbekannt</option>
+                    <option value="integrated">Integriert</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div>
+                <input type="text" name="${namePrefix}[${index}][position]" placeholder="Position" class="nfc-position-input">
+            </div>
+            <div>
+                <label style="font-size: 12px;">
+                    <input type="checkbox" name="${namePrefix}[${index}][is_primary]" value="1" class="nfc-primary-checkbox">
+                    Primär
+                </label>
+            </div>
+            <div>
+                <button type="button" class="btn-remove-nfc" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 30px; height: 30px;">×</button>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(row);
+    
+    // Add remove handler
+    row.querySelector('.btn-remove-nfc').addEventListener('click', function() {
+        row.remove();
+    });
+    
+    // Ensure only one primary checkbox is checked
+    row.querySelector('.nfc-primary-checkbox').addEventListener('change', function() {
+        if (this.checked) {
+            const allPrimaryCheckboxes = container.querySelectorAll('.nfc-primary-checkbox');
+            allPrimaryCheckboxes.forEach(cb => {
+                if (cb !== this) cb.checked = false;
+            });
+        }
+    });
+}
+
+function loadNfcUidsForEdit(filamentId, containerId) {
+    // TODO: Load existing NFC UIDs from API
+    // For now, clear container and add empty row
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    addNfcUidRow(containerId, 0, true);
+}
+
 function changePage(page) {
     currentPage = page;
     loadSpools(page);
@@ -895,6 +1004,31 @@ function hideAddSpoolModal() {
     document.getElementById('new-color-group').style.display = 'none';
     document.getElementById('new-color-input').required = false;
     document.getElementById('new-color-input').value = '';
+    // Reset NFC-UIDs container to initial state
+    const nfcContainer = document.getElementById('nfc-uids-container');
+    nfcContainer.innerHTML = `
+        <div class="nfc-uid-row" data-index="0">
+            <div style="display: grid; grid-template-columns: 1fr 120px 120px 40px; gap: 10px; align-items: end; margin-bottom: 10px;">
+                <div>
+                    <input type="text" name="nfc_uids[0][uid]" placeholder="NFC-UID (optional)" class="nfc-uid-input">
+                </div>
+                <div>
+                    <select name="nfc_uids[0][type]" class="nfc-type-select">
+                        <option value="unknown">Unbekannt</option>
+                        <option value="integrated">Integriert</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div>
+                    <input type="text" name="nfc_uids[0][position]" placeholder="Position" class="nfc-position-input">
+                </div>
+                <div>
+                    <button type="button" class="btn-remove-nfc" style="background: #ef4444; color: white; border: none; border-radius: 4px; width: 30px; height: 30px;">×</button>
+                </div>
+            </div>
+        </div>
+    `;
+    nfcUidCounter = 1;
 }
 
 document.getElementById('add-spool-form').addEventListener('submit', async function(e) {
@@ -1131,8 +1265,10 @@ async function loadSpoolForEdit(id) {
             document.getElementById('edit-spool-location').value = spool.location || '';
             document.getElementById('edit-spool-purchase-date').value = spool.purchase_date || '';
             document.getElementById('edit-spool-batch').value = spool.batch_number || '';
-            document.getElementById('edit-spool-nfc').value = spool.nfc_uid || '';
             document.getElementById('edit-spool-notes').value = spool.notes || '';
+            
+            // Load NFC UIDs for this spool
+            loadNfcUidsForEdit(spool.id, 'edit-nfc-uids-container');
             
         } else {
             document.getElementById('edit-spool-message').innerHTML = '<div style="color: red;">Fehler beim Laden der Spule</div>';
