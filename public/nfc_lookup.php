@@ -55,7 +55,7 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
     
-    // Search for spool by NFC UID
+    // Search for spool by NFC UID (Multiple NFC-UIDs System)
     $stmt = $pdo->prepare("
         SELECT 
             s.id,
@@ -65,25 +65,41 @@ try {
             s.remaining_weight,
             s.location,
             s.created_at,
-            s.nfc_uid,
             t.name as filament_type,
-            c.name as color_name
+            c.name as color_name,
+            nfc.nfc_uid,
+            nfc.tag_type,
+            nfc.tag_position,
+            nfc.is_primary
         FROM filaments s
         LEFT JOIN filament_types t ON s.type_id = t.id
         LEFT JOIN colors c ON s.color_id = c.id
-        WHERE s.nfc_uid = ? AND s.is_active = 1
+        INNER JOIN filament_nfc_uids nfc ON s.id = nfc.filament_id
+        WHERE nfc.nfc_uid = ? AND s.is_active = 1
+        LIMIT 1
     ");
     
     $stmt->execute([$nfcUid]);
     $spool = $stmt->fetch();
     
-    // Log scan attempt
+    // Log scan attempt (Multiple NFC-UIDs System)
     $timestamp = date('Y-m-d H:i:s');
     $logStmt = $pdo->prepare("
-        INSERT INTO nfc_scan_log (nfc_uid, scanner_id, found_spool_id, created_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO nfc_scan_log (nfc_uid, scanner_id, found_filament_id, found_nfc_uid_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
     ");
-    $logStmt->execute([$nfcUid, $scannerId, $spool ? $spool['id'] : null, $timestamp]);
+    
+    if ($spool) {
+        // Get the NFC-UID ID for logging
+        $nfcUidStmt = $pdo->prepare("SELECT id FROM filament_nfc_uids WHERE nfc_uid = ? AND filament_id = ?");
+        $nfcUidStmt->execute([$nfcUid, $spool['id']]);
+        $nfcUidRecord = $nfcUidStmt->fetch();
+        $nfcUidId = $nfcUidRecord ? $nfcUidRecord['id'] : null;
+        
+        $logStmt->execute([$nfcUid, $scannerId, $spool['id'], $nfcUidId, $timestamp]);
+    } else {
+        $logStmt->execute([$nfcUid, $scannerId, null, null, $timestamp]);
+    }
     
     if ($spool) {
         echo json_encode([
@@ -98,6 +114,12 @@ try {
                 'remaining_weight' => (float)$spool['remaining_weight'],
                 'location' => $spool['location'],
                 'created_at' => $spool['created_at']
+            ],
+            'nfc_info' => [
+                'nfc_uid' => $spool['nfc_uid'],
+                'tag_type' => $spool['tag_type'],
+                'tag_position' => $spool['tag_position'],
+                'is_primary' => (bool)$spool['is_primary']
             ],
             'scanner_id' => $scannerId,
             'timestamp' => $timestamp
