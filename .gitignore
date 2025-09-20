@@ -1,0 +1,47 @@
+# Environment files
+.env
+.env.local
+.env.production
+
+# Composer
+/vendor/
+composer.lock
+
+# Logs
+/logs/*.log
+*.log
+
+# Storage
+/storage/backups/*.sql
+/storage/qrcodes/*.png
+/storage/uploads/*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+/tmp/
+*.tmp
+
+# PHP
+*.cache
+
+# Tests
+/tests/coverage/
+.phpunit.result.cache
+
+# Node.js (if used)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Keep directory structure
+!storage/.gitkeep
+!logs/.gitkeep

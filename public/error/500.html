@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500 - Serverfehler</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .error-container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 600px;
+        }
+        .error-code {
+            font-size: 8rem;
+            font-weight: 300;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .error-message {
+            font-size: 1.5rem;
+            margin: 1rem 0;
+        }
+        .error-description {
+            font-size: 1rem;
+            margin: 2rem 0;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+        .home-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 25px;
+            border: 2px solid rgba(255,255,255,0.3);
+            transition: all 0.3s ease;
+            margin-top: 2rem;
+        }
+        .home-button:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
+            transform: translateY(-2px);
+        }
+        .support-info {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 2rem 0;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .support-info h3 {
+            margin-top: 0;
+        }
+        .error-id {
+            font-family: 'Courier New', monospace;
+            background: rgba(0,0,0,0.2);
+            padding: 0.5rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <h1 class="error-code">500</h1>
+        <h2 class="error-message">Interner Serverfehler</h2>
+        <p class="error-description">
+            Entschuldigung! Ein unerwarteter Fehler ist aufgetreten. 
+            Das Problem wurde automatisch gemeldet und wird behoben.
+        </p>
+        
+        <div class="support-info">
+            <h3>Fehler-Details:</h3>
+            <div class="error-id">
+                Fehler-ID: <?php echo date('Y-m-d-H-i-s') . '-' . substr(md5(uniqid()), 0, 8); ?>
+            </div>
+            <p>Falls das Problem weiterhin besteht, wenden Sie sich an den Administrator und geben Sie die Fehler-ID an.</p>
+        </div>
+        
+        <a href="/" class="home-button">Zur Startseite</a>
+    </div>
+</body>
+</html>
