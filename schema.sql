@@ -55,7 +55,6 @@ CREATE TABLE spool_presets (
 CREATE TABLE filaments (
   id INT AUTO_INCREMENT PRIMARY KEY,
   uuid CHAR(36) NOT NULL UNIQUE,
-  nfc_uid VARCHAR(128) UNIQUE NULL,
   type_id INT NOT NULL,
   material VARCHAR(100) NOT NULL,
   color_id INT NULL,
@@ -76,11 +75,28 @@ CREATE TABLE filaments (
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
   
   INDEX idx_uuid (uuid),
-  INDEX idx_nfc_uid (nfc_uid),
   INDEX idx_material (material),
   INDEX idx_location (location),
   INDEX idx_is_active (is_active),
   INDEX idx_created_by (created_by)
+) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- NFC UIDs table - Eine Spule kann mehrere NFC-Tags haben
+CREATE TABLE filament_nfc_uids (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  filament_id INT NOT NULL,
+  nfc_uid VARCHAR(128) NOT NULL UNIQUE,
+  tag_type ENUM('integrated', 'custom', 'unknown') NOT NULL DEFAULT 'unknown',
+  tag_position VARCHAR(50) NULL COMMENT 'z.B. "Spulenanfang", "Spulenende", "Etikett"',
+  is_primary TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  
+  FOREIGN KEY (filament_id) REFERENCES filaments(id) ON DELETE CASCADE,
+  
+  INDEX idx_filament_id (filament_id),
+  INDEX idx_nfc_uid (nfc_uid),
+  INDEX idx_tag_type (tag_type),
+  INDEX idx_is_primary (is_primary)
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- Usage log table for tracking consumption
@@ -107,14 +123,16 @@ CREATE TABLE nfc_scan_log (
     id INT PRIMARY KEY AUTO_INCREMENT,
     nfc_uid VARCHAR(50) NOT NULL,
     scanner_id VARCHAR(50) NOT NULL,
-    found_spool_id INT NULL,
+    found_filament_id INT NULL,
+    found_nfc_uid_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     INDEX idx_nfc_uid (nfc_uid),
     INDEX idx_scanner_id (scanner_id),
     INDEX idx_created_at (created_at),
     
-    FOREIGN KEY (found_spool_id) REFERENCES filaments(id) ON DELETE SET NULL
+    FOREIGN KEY (found_filament_id) REFERENCES filaments(id) ON DELETE SET NULL,
+    FOREIGN KEY (found_nfc_uid_id) REFERENCES filament_nfc_uids(id) ON DELETE SET NULL
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- ======================================================================
@@ -177,7 +195,7 @@ INSERT INTO spool_presets (name, grams) VALUES
 ('5kg Spule', 5000);
 
 -- ======================================================================
--- HINWEISE
+-- HINWEISE ZUR NFC-INTEGRATION
 -- ======================================================================
 -- 
 -- Diese Schema-Datei enthält:
@@ -185,7 +203,18 @@ INSERT INTO spool_presets (name, grams) VALUES
 -- - Alle Indizes für Performance-Optimierung
 -- - Standard-Presets für Materialien, Farben und Spulengrößen
 -- - UTF-8 Zeichensatz-Support für deutsche Umlaute
--- - NFC-Integration Tabellen
+-- - NFC-Integration Tabellen für mehrere UIDs pro Spule
+-- 
+-- NFC-STRUKTUR:
+-- - Eine Filament-Spule kann mehrere NFC-Tags haben (filament_nfc_uids)
+-- - Tags können werkseitig integriert oder nachträglich hinzugefügt sein
+-- - Jede Spule kann einen primären NFC-Tag haben (is_primary = 1)
+-- - Tag-Positionen werden zur besseren Identifikation gespeichert
+-- 
+-- BEISPIELE:
+-- - Bambu Lab Spulen: Oft 2 integrierte NFC-Tags (Anfang + Ende)
+-- - Prusament: 1 integrierter NFC-Tag am Spulenkern  
+-- - Custom Tags: Nachträglich hinzugefügte NFC-Etiketten
 -- 
 -- KEINE Demo-User enthalten - Admin-User muss separat erstellt werden:
 -- php create_admin.php

@@ -10,6 +10,7 @@ Ein umfassendes System zur Verwaltung von 3D-Drucker Filamenten mit NFC-Integrat
 - **Farb-System**: Vordefinierte Farben und "Andere" Funktion für individuelle Farben
 - **Typ-System**: Standard-Typen und "Andere" Funktion für benutzerdefinierte Typen
 - **NFC-Integration**: Verknüpfung von Spulen mit NFC-Tags (ACR122U kompatibel)
+- **Multiple NFC UIDs**: Eine Spule kann mehrere NFC-Tags haben (werkseitig integriert oder custom)
 - **Erweiterte Filter**: Suche und Filterung nach Material, Farbe, Hersteller
 - **Responsive Design**: Funktioniert auf Desktop und mobilen Geräten
 - **UTF-8 Support**: Vollständige Unterstützung für deutsche Umlaute und Emojis
@@ -18,6 +19,7 @@ Ein umfassendes System zur Verwaltung von 3D-Drucker Filamenten mit NFC-Integrat
 - **Windows GUI**: Moderne tkinter-basierte Benutzeroberfläche
 - **ACR122U Support**: Volle Unterstützung für ACR122U NFC-Reader
 - **Real-time Scanning**: Live NFC-Tag Erkennung
+- **Multiple UIDs**: Eine Spule kann mehrere NFC-Tags haben (z.B. Bambu Lab)
 - **Spool Information**: Detaillierte Anzeige von Spulen-Informationen
 - **Clipboard Integration**: Einfaches Kopieren von NFC UIDs
 - **API Integration**: Direkte Verbindung zur Web-Anwendung
@@ -143,6 +145,34 @@ DEBUG_MODE = 0
 - **threading**: Non-blocking UI mit Background-Scanning
 - **requests**: HTTP-API Kommunikation
 - **PyInstaller**: Portable EXE-Kompilierung
+
+### 🏷️ NFC-Integration Details
+
+Das System unterstützt **mehrere NFC-UIDs pro Spule**, da viele Hersteller bereits werkseitig NFC-Tags integrieren:
+
+#### Unterstützte NFC-Konfigurationen:
+- **Bambu Lab Spulen**: Oft 2 integrierte Tags (Spulenanfang + Spulenende)
+- **Prusament**: 1 integrierter Tag am Spulenkern
+- **Generic Spulen**: Nachträglich hinzugefügte NFC-Etiketten
+- **Mixed Setup**: Kombination aus integrierten und custom Tags
+
+#### Datenbank-Struktur:
+```sql
+-- Haupttabelle für Spulen
+filaments (id, material, color, weight, ...)
+
+-- Separate Tabelle für NFC-UIDs (1:n Beziehung)
+filament_nfc_uids (filament_id, nfc_uid, tag_type, tag_position, is_primary)
+```
+
+#### Tag-Typen:
+- `integrated`: Werkseitig vom Hersteller eingebaut
+- `custom`: Nachträglich hinzugefügte Etiketten  
+- `unknown`: Typ nicht bekannt
+
+#### Primärer Tag:
+- Ein Tag pro Spule kann als `is_primary = 1` markiert werden
+- Wird bevorzugt für Scanner-Anzeige und API-Responses verwendet
 - Git
 
 ### Setup
