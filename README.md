@@ -43,17 +43,32 @@ cd filament-management
 -- Datenbank erstellen
 CREATE DATABASE filament_management CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- SQL-Dateien ausführen (falls vorhanden)
--- mysql -u root -p filament_management < database/schema.sql
+-- Schema mit allen Tabellen und Preset-Daten importieren
+mysql -u root -p filament_management < schema.sql
 ```
 
-### 3. Konfiguration
+### 3. Admin-User erstellen
+```bash
+# Admin-User erstellen (falls create_admin.php verfügbar)
+php create_admin.php
+
+# Oder manuell in der Datenbank (Passwort: admin123)
+mysql -u root -p filament_management -e "INSERT INTO users (email, password_hash, name, role, verified_at, is_active) VALUES ('admin@example.com', '\$2y\$10\$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrator', 'admin', NOW(), 1);"
+```
+
+### 4. Konfiguration
 ```php
 // config/database.php anpassen
 return [
     'host' => 'localhost',
     'dbname' => 'filament_management',
     'username' => 'ihr_username',
+    'password' => 'ihr_passwort',
+    'charset' => 'utf8mb4'
+];
+```
+
+### 5. Web-Server starten
     'password' => 'ihr_passwort',
     'charset' => 'utf8mb4'
 ];
