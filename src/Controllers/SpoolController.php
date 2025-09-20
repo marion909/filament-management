@@ -49,6 +49,9 @@ class SpoolController
             $limit = min(100, max(10, (int)($_GET['limit'] ?? 50)));
             
             $filters = [];
+            if (!empty($_GET['id'])) {
+                $filters['id'] = (int)$_GET['id'];
+            }
             if (!empty($_GET['material'])) {
                 $filters['material'] = $_GET['material'];
             }
@@ -143,6 +146,12 @@ class SpoolController
             
             $userId = $_SESSION['user_id'];
             $spoolId = $this->spoolModel->createSpool($input, $userId);
+            
+            // Handle Multiple NFC-UIDs if provided
+            if (!empty($input['nfc_uids']) && is_array($input['nfc_uids'])) {
+                $this->spoolModel->saveNfcUids($spoolId, $input['nfc_uids']);
+            }
+            
             $spool = $this->spoolModel->find($spoolId);
             
             $this->jsonResponse([
@@ -205,6 +214,16 @@ class SpoolController
             if (!empty($updateData)) {
                 $updateData['updated_at'] = date('Y-m-d H:i:s');
                 $this->spoolModel->update($id, $updateData);
+            }
+            
+            // Handle Multiple NFC-UIDs if provided
+            if (array_key_exists('nfc_uids', $input)) {
+                if (is_array($input['nfc_uids'])) {
+                    $this->spoolModel->saveNfcUids($id, $input['nfc_uids']);
+                } else {
+                    // Clear NFC-UIDs if explicitly set to null or empty
+                    $this->spoolModel->saveNfcUids($id, []);
+                }
             }
             
             $updatedSpool = $this->spoolModel->find($id);

@@ -26,15 +26,39 @@ class FilamentSpool extends BaseModel
     }
     
     /**
-     * Find filament by NFC UID
+     * Find filament by NFC UID (backward compatibility - uses new Multiple NFC-UIDs system)
      */
     public function findByNfcUid(string $nfcUid): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE nfc_uid = ? AND is_active = 1 LIMIT 1");
-        $stmt->execute([$nfcUid]);
+        return $this->findByAnyNfcUid($nfcUid);
+    }
+    
+    /**
+     * Override find to include NFC-UIDs
+     */
+    public function find(int $id): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT f.*, ft.name as type_name, c.name as color_name, c.hex as color_hex
+            FROM {$this->table} f
+            LEFT JOIN filament_types ft ON f.type_id = ft.id
+            LEFT JOIN colors c ON f.color_id = c.id
+            WHERE f.id = ? LIMIT 1
+        ");
+        $stmt->execute([$id]);
         
         $result = $stmt->fetch();
-        return $result ?: null;
+        if (!$result) return null;
+        
+        // Load NFC-UIDs
+        $result['nfc_uids'] = $this->getNfcUids($id);
+        // For backward compatibility, add primary NFC-UID
+        $primaryNfc = array_filter($result['nfc_uids'], function($nfc) {
+            return $nfc['is_primary'];
+        });
+        $result['nfc_uid'] = !empty($primaryNfc) ? array_values($primaryNfc)[0]['nfc_uid'] : null;
+        
+        return $result;
     }
     
     /**
@@ -47,6 +71,7 @@ class FilamentSpool extends BaseModel
         $params = [];
         
         // Build WHERE conditions
+
         if (!empty($filters['material'])) {
             $conditions[] = 'material LIKE ?';
             $params[] = '%' . $filters['material'] . '%';
@@ -89,6 +114,19 @@ class FilamentSpool extends BaseModel
         $stmt->execute($params);
         
         $spools = $stmt->fetchAll();
+        
+        // Load NFC-UIDs for each spool
+        if (!empty($spools)) {
+            foreach ($spools as &$spool) {
+                $spool['nfc_uids'] = $this->getNfcUids((int)$spool['id']);
+                // For backward compatibility, add primary NFC-UID
+                $primaryNfc = array_filter($spool['nfc_uids'], function($nfc) {
+                    return $nfc['is_primary'];
+                });
+                $spool['nfc_uid'] = !empty($primaryNfc) ? array_values($primaryNfc)[0]['nfc_uid'] : null;
+            }
+            unset($spool); // Break reference
+        }
         
         // Get total count for pagination
         $countSql = "SELECT COUNT(*) FROM {$this->table} WHERE " . implode(' AND ', $conditions);
@@ -236,6 +274,180 @@ class FilamentSpool extends BaseModel
         ];
     }
     
+    // ========================================
+    // MULTIPLE NFC-UIDs METHODS
+    // ========================================
+    
+    /**
+     * Get all NFC-UIDs for a specific filament
+     */
+    public function getNfcUids(int $filamentId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT id, nfc_uid, tag_type, tag_position, is_primary, created_at 
+            FROM filament_nfc_uids 
+            WHERE filament_id = ? 
+            ORDER BY is_primary DESC, created_at ASC
+        ");
+        $stmt->execute([$filamentId]);
+        
+        return $stmt->fetchAll();
+    }
+    
+    /**
+     * Add NFC-UID to filament
+     */
+    public function addNfcUid(int $filamentId, string $nfcUid, string $tagType = 'unknown', ?string $tagPosition = null, bool $isPrimary = false): bool
+    {
+        // If this is set as primary, remove primary flag from others
+        if ($isPrimary) {
+            $stmt = $this->db->prepare("UPDATE filament_nfc_uids SET is_primary = 0 WHERE filament_id = ?");
+            $stmt->execute([$filamentId]);
+        }
+        
+        $stmt = $this->db->prepare("
+            INSERT INTO filament_nfc_uids (filament_id, nfc_uid, tag_type, tag_position, is_primary) 
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        
+        return $stmt->execute([$filamentId, $nfcUid, $tagType, $tagPosition, $isPrimary ? 1 : 0]);
+    }
+    
+    /**
+     * Save/Update multiple NFC-UIDs for filament
+     */
+    public function saveNfcUids(int $filamentId, array $nfcUids): bool
+    {
+        try {
+            $this->db->beginTransaction();
+            
+            // Delete existing UIDs
+            $stmt = $this->db->prepare("DELETE FROM filament_nfc_uids WHERE filament_id = ?");
+            $stmt->execute([$filamentId]);
+            
+            // Insert new UIDs
+            if (!empty($nfcUids)) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO filament_nfc_uids (filament_id, nfc_uid, tag_type, tag_position, is_primary) 
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                
+                $hasPrimary = false;
+                foreach ($nfcUids as $uid) {
+                    if (empty($uid['uid'])) continue; // Skip empty UIDs
+                    
+                    $isPrimary = !empty($uid['is_primary']) && !$hasPrimary;
+                    if ($isPrimary) $hasPrimary = true;
+                    
+                    $stmt->execute([
+                        $filamentId,
+                        $uid['uid'],
+                        $uid['tag_type'] ?? 'unknown',
+                        $uid['tag_position'] ?? null,
+                        $isPrimary ? 1 : 0
+                    ]);
+                }
+                
+                // Ensure at least one is primary if any exist
+                if (!$hasPrimary && !empty($nfcUids)) {
+                    $stmt = $this->db->prepare("UPDATE filament_nfc_uids SET is_primary = 1 WHERE filament_id = ? LIMIT 1");
+                    $stmt->execute([$filamentId]);
+                }
+            }
+            
+            $this->db->commit();
+            return true;
+            
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            return false;
+        }
+    }
+    
+    /**
+     * Find filament by ANY of its NFC-UIDs (replaces old findByNfcUid)
+     */
+    public function findByAnyNfcUid(string $nfcUid): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT f.*, ft.name as type_name, c.name as color_name, c.hex as color_hex,
+                   nfc.nfc_uid, nfc.tag_type, nfc.tag_position, nfc.is_primary
+            FROM {$this->table} f
+            LEFT JOIN filament_types ft ON f.type_id = ft.id
+            LEFT JOIN colors c ON f.color_id = c.id
+            INNER JOIN filament_nfc_uids nfc ON f.id = nfc.filament_id
+            WHERE nfc.nfc_uid = ? AND is_active = 1 
+            LIMIT 1
+        ");
+        $stmt->execute([$nfcUid]);
+        
+        $result = $stmt->fetch();
+        if (!$result) return null;
+        
+        // Add all NFC-UIDs for this filament
+        $result['nfc_uids'] = $this->getNfcUids((int)$result['id']);
+        
+        return $result;
+    }
+    
+    /**
+     * Update existing NFC-UID
+     */
+    public function updateNfcUid(int $nfcUidId, array $data): bool
+    {
+        $fields = [];
+        $params = [];
+        
+        if (isset($data['nfc_uid'])) {
+            $fields[] = 'nfc_uid = ?';
+            $params[] = $data['nfc_uid'];
+        }
+        
+        if (isset($data['tag_type'])) {
+            $fields[] = 'tag_type = ?';
+            $params[] = $data['tag_type'];
+        }
+        
+        if (isset($data['tag_position'])) {
+            $fields[] = 'tag_position = ?';
+            $params[] = $data['tag_position'];
+        }
+        
+        if (isset($data['is_primary'])) {
+            // If setting as primary, first remove primary from others
+            if ($data['is_primary']) {
+                $getFilamentStmt = $this->db->prepare("SELECT filament_id FROM filament_nfc_uids WHERE id = ?");
+                $getFilamentStmt->execute([$nfcUidId]);
+                $filamentId = $getFilamentStmt->fetchColumn();
+                
+                if ($filamentId) {
+                    $clearPrimaryStmt = $this->db->prepare("UPDATE filament_nfc_uids SET is_primary = 0 WHERE filament_id = ?");
+                    $clearPrimaryStmt->execute([$filamentId]);
+                }
+            }
+            
+            $fields[] = 'is_primary = ?';
+            $params[] = $data['is_primary'] ? 1 : 0;
+        }
+        
+        if (empty($fields)) return true;
+        
+        $params[] = $nfcUidId;
+        $sql = "UPDATE filament_nfc_uids SET " . implode(', ', $fields) . " WHERE id = ?";
+        
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
+    
+    /**
+     * Delete NFC-UID
+     */
+    public function deleteNfcUid(int $nfcUidId): bool
+    {
+        $stmt = $this->db->prepare("DELETE FROM filament_nfc_uids WHERE id = ?");
+        return $stmt->execute([$nfcUidId]);
+    }
+
     /**
      * Generate UUID v4
      */

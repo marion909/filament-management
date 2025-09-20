@@ -310,7 +310,7 @@ class NFCScannerGUI:
         if result.get('found'):
             # Spule gefunden
             spool = result.get('spool', {})
-            self.show_spool_info(spool, nfc_uid)
+            self.show_spool_info(spool, nfc_uid, result)
             
             # Historie hinzufügen
             self.history_tree.insert("", 0, values=(
@@ -335,7 +335,7 @@ class NFCScannerGUI:
         # Zum aktuellen Tab wechseln
         self.notebook.select(0)
     
-    def show_spool_info(self, spool: Dict[str, Any], nfc_uid: str):
+    def show_spool_info(self, spool: Dict[str, Any], nfc_uid: str, result: Dict[str, Any] = None):
         """Spule-Informationen anzeigen"""
         # Verstecke "Warten auf Tag" Frame
         self.no_spool_frame.grid_remove()
@@ -373,6 +373,34 @@ class NFCScannerGUI:
                 row=row, column=1, sticky=tk.W, pady=5
             )
             row += 1
+        
+        # NFC-Tag Details (Multiple NFC-UIDs System)
+        nfc_info = result.get('nfc_info', {})
+        if nfc_info:
+            # Separator
+            separator = ttk.Separator(info_frame, orient='horizontal')
+            separator.grid(row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
+            row += 1
+            
+            # NFC Tag Info Header
+            ttk.Label(info_frame, text="📋 NFC-Tag Informationen:", font=('Segoe UI', 11, 'bold')).grid(
+                row=row, column=0, columnspan=2, sticky=tk.W, pady=(5, 10)
+            )
+            row += 1
+            
+            # NFC Tag Details
+            for label, value, icon in [
+                ("Tag-Typ", nfc_info.get('tag_type', 'N/A'), "🏷️"),
+                ("Position", nfc_info.get('tag_position', 'N/A'), "📍"),
+                ("Primärer Tag", "✅ Ja" if nfc_info.get('is_primary') else "❌ Nein", "⭐")
+            ]:
+                ttk.Label(info_frame, text=f"  {icon} {label}:", font=('Segoe UI', 9)).grid(
+                    row=row, column=0, sticky=tk.W, padx=(20, 20), pady=2
+                )
+                ttk.Label(info_frame, text=str(value), font=('Segoe UI', 9)).grid(
+                    row=row, column=1, sticky=tk.W, pady=2
+                )
+                row += 1
         
         # Progress Bar für Gewicht
         remaining = spool.get('remaining_weight', 0)

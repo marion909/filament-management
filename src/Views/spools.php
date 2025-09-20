@@ -233,10 +233,38 @@ ob_start();
                     <label for="spool-batch">Chargen-Nr.:</label>
                     <input type="text" id="spool-batch" name="batch_number">
                 </div>
-                
-                <div class="form-group">
-                    <label for="spool-nfc">NFC-UID:</label>
-                    <input type="text" id="spool-nfc" name="nfc_uid" placeholder="Optional">
+            </div>
+            
+            <!-- Multiple NFC-UIDs Section -->
+            <div class="form-group" style="margin-top: 20px;">
+                <label style="display: block; margin-bottom: 10px;">NFC-Tags:</label>
+                <div id="nfc-uids-container">
+                    <div class="nfc-uid-row" style="display: flex; gap: 10px; margin-bottom: 10px; align-items: end;">
+                        <div style="flex: 1;">
+                            <input type="text" name="nfc_uids[0][uid]" placeholder="NFC-UID (optional)" class="nfc-uid-input">
+                        </div>
+                        <div style="width: 120px;">
+                            <select name="nfc_uids[0][tag_type]" class="nfc-tag-type">
+                                <option value="unknown">Unbekannt</option>
+                                <option value="integrated">Integriert</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div style="width: 100px;">
+                            <input type="text" name="nfc_uids[0][tag_position]" placeholder="Position" class="nfc-tag-position">
+                        </div>
+                        <div style="width: 80px;">
+                            <label style="font-size: 12px; display: flex; align-items: center; gap: 5px;">
+                                <input type="checkbox" name="nfc_uids[0][is_primary]" class="nfc-is-primary">
+                                Primär
+                            </label>
+                        </div>
+                        <button type="button" class="btn-remove-nfc" style="background: #ef4444; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; display: none;">×</button>
+                    </div>
+                </div>
+                <button type="button" id="add-nfc-uid" class="btn btn-secondary" style="margin-top: 5px;">+ NFC-Tag hinzufügen</button>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
+                    💡 Tipp: Viele Hersteller (Bambu Lab, Prusament) haben bereits integrierte NFC-Tags
                 </div>
             </div>
             
@@ -343,18 +371,25 @@ ob_start();
                     <label for="edit-spool-batch">Chargen-Nr.:</label>
                     <input type="text" id="edit-spool-batch" name="batch_number">
                 </div>
-                
-                <div class="form-group">
-                    <label for="edit-spool-nfc">NFC-UID:</label>
-                    <input type="text" id="edit-spool-nfc" name="nfc_uid" placeholder="Optional">
+            </div>
+            
+            <!-- Multiple NFC-UIDs Section for Edit -->
+            <div class="form-group" style="margin-top: 20px;">
+                <label style="display: block; margin-bottom: 10px;">NFC-Tags:</label>
+                <div id="edit-nfc-uids-container">
+                    <!-- NFC-UID rows will be populated dynamically -->
+                </div>
+                <button type="button" id="edit-add-nfc-uid" class="btn btn-secondary" style="margin-top: 5px;">+ NFC-Tag hinzufügen</button>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 5px;">
+                    💡 Ein Tag kann als primär markiert werden (für Scanner-Anzeige)
                 </div>
             </div>
             
-            <div class="form-group">
+            <div class="form-group" style="margin-top: 20px;">
                 <label for="edit-spool-notes">Notizen:</label>
                 <textarea id="edit-spool-notes" name="notes" rows="3"></textarea>
             </div>
-            
+
             <div style="text-align: right; margin-top: 20px;">
                 <button type="button" class="btn btn-danger" id="delete-spool-btn" style="margin-right: auto; float: left;">Löschen</button>
                 <button type="button" class="btn btn-secondary" id="cancel-edit-spool">Abbrechen</button>
@@ -498,6 +533,45 @@ let presets = {};
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
+    // Check for specific spool ID in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const spoolId = urlParams.get('id');
+    
+    if (spoolId) {
+        // If ID is provided, filter for that specific spool
+        currentFilters.id = spoolId;
+        
+        // Hide normal filter UI and show ID filter info
+        const filterCard = document.querySelector('.card');
+        const idFilterInfo = document.createElement('div');
+        idFilterInfo.className = 'card';
+        idFilterInfo.style.marginBottom = '20px';
+        idFilterInfo.innerHTML = `
+            <h3>Filament-Spule anzeigen</h3>
+            <p>Zeige Spule mit ID: <strong>${spoolId}</strong></p>
+            <button class="btn btn-secondary" id="show-all-spools">Alle Spulen anzeigen</button>
+        `;
+        
+        filterCard.style.display = 'none';
+        filterCard.parentNode.insertBefore(idFilterInfo, filterCard);
+        
+        // Add event listener for "show all" button
+        document.getElementById('show-all-spools').addEventListener('click', function() {
+            // Remove ID filter and show all spools
+            delete currentFilters.id;
+            const url = new URL(window.location);
+            url.searchParams.delete('id');
+            window.history.pushState({}, '', url);
+            
+            // Remove ID filter info and show normal filters
+            idFilterInfo.remove();
+            filterCard.style.display = 'block';
+            
+            // Reload spools
+            loadSpools(1);
+        });
+    }
+    
     // Load initial data
     loadPresets().then(() => {
         loadSpools();
@@ -901,7 +975,17 @@ document.getElementById('add-spool-form').addEventListener('submit', async funct
     e.preventDefault();
     
     const formData = new FormData(this);
-    const data = Object.fromEntries(formData);
+    const data = {};
+    
+    // Process regular form fields (not NFC-UIDs)
+    for (const [key, value] of formData.entries()) {
+        if (!key.startsWith('nfc_uids')) {
+            data[key] = value;
+        }
+    }
+    
+    // Add NFC-UIDs
+    data.nfc_uids = serializeNfcUids(document.getElementById('nfc-uids-container'));
     
     const messageDiv = document.getElementById('add-spool-message');
     messageDiv.innerHTML = '';
@@ -1131,8 +1215,13 @@ async function loadSpoolForEdit(id) {
             document.getElementById('edit-spool-location').value = spool.location || '';
             document.getElementById('edit-spool-purchase-date').value = spool.purchase_date || '';
             document.getElementById('edit-spool-batch').value = spool.batch_number || '';
-            document.getElementById('edit-spool-nfc').value = spool.nfc_uid || '';
             document.getElementById('edit-spool-notes').value = spool.notes || '';
+            
+            // Load NFC-UIDs
+            populateNfcUids(document.getElementById('edit-nfc-uids-container'), spool.nfc_uids || []);
+            
+            // Store spool ID for form submission
+            document.getElementById('edit-spool-form').dataset.spoolId = spool.id;
             
         } else {
             document.getElementById('edit-spool-message').innerHTML = '<div style="color: red;">Fehler beim Laden der Spule</div>';
@@ -1147,8 +1236,18 @@ document.getElementById('edit-spool-form').addEventListener('submit', async func
     e.preventDefault();
     
     const formData = new FormData(this);
-    const data = Object.fromEntries(formData);
-    const spoolId = data.id;
+    const data = {};
+    const spoolId = this.dataset.spoolId;
+    
+    // Process regular form fields (not NFC-UIDs)
+    for (const [key, value] of formData.entries()) {
+        if (!key.startsWith('nfc_uids')) {
+            data[key] = value;
+        }
+    }
+    
+    // Add NFC-UIDs
+    data.nfc_uids = serializeNfcUids(document.getElementById('edit-nfc-uids-container'));
     
     const messageDiv = document.getElementById('edit-spool-message');
     messageDiv.innerHTML = '';
@@ -1234,6 +1333,136 @@ async function deleteSpool() {
         }
     }
 }
+
+// ========================================
+// MULTIPLE NFC-UIDs FUNCTIONS
+// ========================================
+
+let nfcUidCounter = 1;
+
+function addNfcUidRow(container, index, uid = null) {
+    const row = document.createElement('div');
+    row.className = 'nfc-uid-row';
+    row.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: end;';
+    
+    row.innerHTML = 
+        '<div style="flex: 1;">' +
+            '<input type="text" name="nfc_uids[' + index + '][uid]" placeholder="NFC-UID (optional)" class="nfc-uid-input" value="' + (uid ? uid.nfc_uid || '' : '') + '">' +
+        '</div>' +
+        '<div style="width: 120px;">' +
+            '<select name="nfc_uids[' + index + '][tag_type]" class="nfc-tag-type">' +
+                '<option value="unknown"' + (uid && uid.tag_type === 'unknown' ? ' selected' : '') + '>Unbekannt</option>' +
+                '<option value="integrated"' + (uid && uid.tag_type === 'integrated' ? ' selected' : '') + '>Integriert</option>' +
+                '<option value="custom"' + (uid && uid.tag_type === 'custom' ? ' selected' : '') + '>Custom</option>' +
+            '</select>' +
+        '</div>' +
+        '<div style="width: 100px;">' +
+            '<input type="text" name="nfc_uids[' + index + '][tag_position]" placeholder="Position" class="nfc-tag-position" value="' + (uid ? uid.tag_position || '' : '') + '">' +
+        '</div>' +
+        '<div style="width: 80px;">' +
+            '<label style="font-size: 12px; display: flex; align-items: center; gap: 5px;">' +
+                '<input type="checkbox" name="nfc_uids[' + index + '][is_primary]" class="nfc-is-primary"' + (uid && uid.is_primary ? ' checked' : '') + '>' +
+                'Primär' +
+            '</label>' +
+        '</div>' +
+        '<button type="button" class="btn-remove-nfc" style="background: #ef4444; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer;">×</button>';
+    
+    container.appendChild(row);
+    
+    // Add event listeners
+    const removeBtn = row.querySelector('.btn-remove-nfc');
+    removeBtn.addEventListener('click', function() {
+        row.remove();
+        updateRemoveButtons(container);
+    });
+    
+    const primaryCheckbox = row.querySelector('.nfc-is-primary');
+    primaryCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            // Uncheck other primary checkboxes in the same container
+            const otherCheckboxes = container.querySelectorAll('.nfc-is-primary');
+            otherCheckboxes.forEach(function(checkbox) {
+                if (checkbox !== primaryCheckbox) {
+                    checkbox.checked = false;
+                }
+            });
+        }
+    });
+    
+    updateRemoveButtons(container);
+    return row;
+}
+
+function updateRemoveButtons(container) {
+    const rows = container.querySelectorAll('.nfc-uid-row');
+    rows.forEach(function(row, index) {
+        const removeBtn = row.querySelector('.btn-remove-nfc');
+        if (rows.length > 1) {
+            removeBtn.style.display = 'block';
+        } else {
+            removeBtn.style.display = 'none';
+        }
+    });
+}
+
+function populateNfcUids(container, nfcUids) {
+    container.innerHTML = '';
+    if (!nfcUids || nfcUids.length === 0) {
+        addNfcUidRow(container, 0);
+    } else {
+        nfcUids.forEach(function(uid, index) {
+            addNfcUidRow(container, index, uid);
+        });
+    }
+}
+
+function serializeNfcUids(container) {
+    const rows = container.querySelectorAll('.nfc-uid-row');
+    const nfcUids = [];
+    
+    rows.forEach(function(row) {
+        const uidInput = row.querySelector('.nfc-uid-input');
+        const typeSelect = row.querySelector('.nfc-tag-type');
+        const positionInput = row.querySelector('.nfc-tag-position');
+        const primaryCheckbox = row.querySelector('.nfc-is-primary');
+        
+        if (uidInput.value.trim()) {
+            nfcUids.push({
+                uid: uidInput.value.trim(),
+                tag_type: typeSelect.value,
+                tag_position: positionInput.value.trim() || null,
+                is_primary: primaryCheckbox.checked
+            });
+        }
+    });
+    
+    return nfcUids;
+}
+
+// Initialize NFC-UIDs functionality
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing Multiple NFC-UIDs functionality...');
+    
+    // Add NFC-UID button for Add Modal
+    const addNfcBtn = document.getElementById('add-nfc-uid');
+    if (addNfcBtn) {
+        addNfcBtn.addEventListener('click', function() {
+            const container = document.getElementById('nfc-uids-container');
+            addNfcUidRow(container, nfcUidCounter++);
+        });
+    }
+    
+    // Add NFC-UID button for Edit Modal
+    const editAddNfcBtn = document.getElementById('edit-add-nfc-uid');
+    if (editAddNfcBtn) {
+        editAddNfcBtn.addEventListener('click', function() {
+            const container = document.getElementById('edit-nfc-uids-container');
+            addNfcUidRow(container, nfcUidCounter++);
+        });
+    }
+    
+    console.log('Multiple NFC-UIDs functionality ready!');
+});
 
 </script>
 
